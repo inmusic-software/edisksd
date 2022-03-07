@@ -1,0 +1,13 @@
+[Unit]
+Description=Disk mounting service
+
+[Service]
+Type=dbus
+BusName=io.github.inmusicdev.edisksd
+ExecStart=@libexecdir@/edisksd
+NotifyAccess=main
+LimitNPROC=1
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

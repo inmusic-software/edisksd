@@ -1,0 +1,5 @@
+#!/bin/sh
+
+test -d build-aux || mkdir build-aux
+
+autoreconf --force --install --symlink

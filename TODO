@@ -1,0 +1,2 @@
+- Support blkid in case udev is not configured to run the blkid builtin rule
+  and set properties to the device

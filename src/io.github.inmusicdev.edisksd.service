@@ -1,0 +1,5 @@
+[D-BUS Service]
+Name=io.github.inmusicdev.edisksd
+Exec=/bin/false
+User=root
+SystemdService=edisksd.service
