@@ -11,6 +11,7 @@ void filesystem_exit(void);
 
 void filesystem_added(struct block_device *, struct udev_device *);
 void filesystem_removed(struct block_device *);
+void filesystem_changed(struct block_device *, struct udev_device *);
 
 void filesystem_mounted(dev_t dev, const char *mountpoint);
 void filesystem_unmounted(dev_t dev, const char *mountpoint);

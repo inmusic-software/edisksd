@@ -32,6 +32,7 @@ struct block_device {
 	uint64_t size;
 
 	bool ignore;
+	bool filesystem;
 	bool ro;
 };
 
@@ -298,6 +299,7 @@ void block_added(struct udev_device *device)
 	block->dev = udev_device_get_devnum(device);
 	block->size = block_get_size(block);
 	block->ignore = get_udev_bool_property(device, "EDISKSD_IGNORE");
+	block->filesystem = is_filesystem_device(device);
 	block->ro = sysattr_to_bool(udev_device_get_sysattr_value(device, "ro"));
 
 	block->devlinks = str_array_from_udev_list(
@@ -313,7 +315,7 @@ void block_added(struct udev_device *device)
 
 	block_register_dbus(block);
 
-	if (is_filesystem_device(device))
+	if (block->filesystem)
 		filesystem_added(block, device);
 }
 
@@ -336,6 +338,55 @@ void block_removed(struct udev_device *device)
 
 	filesystem_removed(block);
 	block_device_free(block);
+}
+
+void block_changed(struct udev_device *device)
+{
+	L_AUTO_FREE_VAR(char *, path) = NULL;
+	struct l_dbus *dbus = dbus_get_bus();
+	struct block_device *block;
+	const char *devpath;
+
+	devpath = udev_device_get_devpath(device);
+
+	block = l_hashmap_remove(block_hashmap, devpath);
+	if (!block)
+		return;
+
+	path = block_device_get_path(block);
+
+	if (block->size != block_get_size(block)) {
+		block->size = block_get_size(block);
+		l_dbus_property_changed(dbus, path,
+					EDISKSD_BLOCK_INTERFACE,
+					"Size");
+	}
+
+	if (block->ignore != get_udev_bool_property(device, "EDISKSD_IGNORE")) {
+		block->ignore = get_udev_bool_property(device, "EDISKSD_IGNORE");
+		l_dbus_property_changed(dbus, path,
+					EDISKSD_BLOCK_INTERFACE,
+					"HintIgnore");
+	}
+
+	if (block->ro != sysattr_to_bool(udev_device_get_sysattr_value(device, "ro"))) {
+		block->ro = sysattr_to_bool(udev_device_get_sysattr_value(device, "ro"));
+		l_dbus_property_changed(dbus, path,
+					EDISKSD_BLOCK_INTERFACE,
+					"ReadOnly");
+	}
+
+	if (is_filesystem_device(device)) {
+		if (block->filesystem)
+			filesystem_changed(block, device);
+		else
+			filesystem_added(block, device);
+
+		block->filesystem = true;
+	} else {
+		filesystem_removed(block);
+		block->filesystem = false;
+	}
 }
 
 int block_init(void)

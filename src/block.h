@@ -17,5 +17,6 @@ void block_exit(void);
 
 void block_added(struct udev_device *);
 void block_removed(struct udev_device *);
+void block_changed(struct udev_device *);
 
 #endif

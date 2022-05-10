@@ -33,6 +33,8 @@ static void dispatch_device(struct udev_device *device)
 		block_added(device);
 	else if (!strcmp(action, "remove"))
 		block_removed(device);
+	else if (!strcmp(action, "change"))
+		block_changed(device);
 }
 
 static bool udev_read_callback(struct l_io *io, void *user_data)

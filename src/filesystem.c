@@ -608,6 +608,41 @@ void filesystem_removed(struct block_device *block)
 	filesystem_free(fs);
 }
 
+static void filesystem_update_property(struct filesystem *fs, const char *prop,
+				       char **value, const char *new_value)
+{
+	L_AUTO_FREE_VAR(char *, path);
+
+	if (!*value && !new_value)
+		return;
+
+	if (*value && new_value && !strcmp(*value, new_value))
+		return;
+
+	l_free(*value);
+	*value = l_strdup(new_value);
+
+	path = block_device_get_path(fs->block);
+	l_dbus_property_changed(dbus_get_bus(), path,
+				EDISKSD_FILESYSTEM_INTERFACE, prop);
+}
+
+void filesystem_changed(struct block_device *block, struct udev_device *device)
+{
+	struct filesystem *fs;
+
+	fs = filesystem_lookup_by_dev(block_device_get_dev(block));
+	if (!fs)
+		return;
+
+	filesystem_update_property(fs, "Type", &fs->type,
+				   udev_device_get_property_value(device, "ID_FS_TYPE"));
+	filesystem_update_property(fs, "Label", &fs->label,
+				   udev_device_get_property_value(device, "ID_FS_LABEL"));
+	filesystem_update_property(fs, "UUID", &fs->uuid,
+				   udev_device_get_property_value(device, "ID_FS_UUID"));
+}
+
 int filesystem_init(void)
 {
 	struct l_dbus *dbus = dbus_get_bus();
