@@ -501,7 +501,7 @@ static void filesystem_free(struct filesystem *fs)
 void filesystem_mounted(dev_t dev, const char *mountpoint)
 {
 	struct filesystem *fs = filesystem_lookup_by_dev(dev);
-	L_AUTO_FREE_VAR(char *, path);
+	L_AUTO_FREE_VAR(char *, path) = NULL;
 
 	l_info("mounted %u:%u at %s", major(dev), minor(dev), mountpoint);
 
@@ -524,7 +524,7 @@ static bool filesystem_match_mountpoint(const void *a, const void *b)
 void filesystem_unmounted(dev_t dev, const char *mountpoint)
 {
 	struct filesystem *fs = filesystem_lookup_by_dev(dev);
-	L_AUTO_FREE_VAR(char *, path);
+	L_AUTO_FREE_VAR(char *, path) = NULL;
 	char *managed;
 
 	l_info("unmounted %u:%u at %s", major(dev), minor(dev), mountpoint);
@@ -611,7 +611,7 @@ void filesystem_removed(struct block_device *block)
 static void filesystem_update_property(struct filesystem *fs, const char *prop,
 				       char **value, const char *new_value)
 {
-	L_AUTO_FREE_VAR(char *, path);
+	L_AUTO_FREE_VAR(char *, path) = NULL;
 
 	if (!*value && !new_value)
 		return;
