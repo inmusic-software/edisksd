@@ -4,6 +4,7 @@
 #include <config.h>
 #endif
 
+#include <err.h>
 #include <getopt.h>
 #include <signal.h>
 #include <stdio.h>
@@ -29,6 +30,8 @@ struct context {
 	struct l_dbus_client *client;
 	int argc;
 	char **argv;
+
+	int version_attempts;
 };
 
 static void signal_handler(uint32_t signo, void *user_data)
@@ -71,6 +74,49 @@ static int run_command(struct context *ctx)
 	return EXIT_FAILURE;
 }
 
+static void check_daemon_version(struct context *ctx);
+
+static void daemon_version_reply(struct l_dbus_message *message, void *user_data)
+{
+	struct context *ctx = user_data;
+	struct l_dbus_message_iter value;
+	const char *version;
+
+	if (l_dbus_message_is_error(message)) {
+		const char *name, *text;
+		if (l_dbus_message_get_error(message, &name, &text) &&
+		    !strcmp(name, "org.freedesktop.DBus.Error.NotFound") &&
+		    ++ctx->version_attempts < 3) {
+			check_daemon_version(ctx);
+			return;
+		}
+
+		l_error("failed to get daemon version: %s: %s", name, text);
+		exit(1);
+	}
+
+	if (!l_dbus_message_get_arguments(message, "v", &value) ||
+	    !l_dbus_message_iter_get_variant(&value, "s", &version))
+		errx(1, "did not recognise daemon response");
+
+	l_info("Daemon version: %s", version);
+	run_command(ctx);
+}
+
+static void check_daemon_version(struct context *ctx)
+{
+	struct l_dbus_message *message;
+
+	message = l_dbus_message_new_method_call(ctx->dbus, EDISKSD_SERVICE,
+						 EDISKSD_BASE_PATH,
+						 L_DBUS_INTERFACE_PROPERTIES,
+						 "Get");
+	l_dbus_message_set_arguments(message, "ss",
+				     EDISKSD_DAEMON_INTERFACE, "Version");
+
+	l_dbus_send_with_reply(ctx->dbus, message, daemon_version_reply, ctx, NULL);
+}
+
 int main(int argc, char *argv[])
 {
 	struct context ctx = {
@@ -90,9 +136,11 @@ int main(int argc, char *argv[])
 
 	ctx.dbus = l_dbus_new_default(L_DBUS_SYSTEM_BUS);
 
-	ret = run_command(&ctx);
-	if (ret)
-		goto failed_run;
+	/*
+	 * Ensure we start with a method call which will activate the service
+	 * if it is not already running.
+	 */
+	check_daemon_version(&ctx);
 
 	ret = l_main_run_with_signal(signal_handler, NULL);
 
