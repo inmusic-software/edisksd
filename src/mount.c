@@ -147,6 +147,7 @@ int mount_init(void)
 	if (!mountinfo_setup_io())
 		goto failed_unref;
 
+	update_mountinfo();
 	return 0;
 
 failed_unref:
