@@ -61,6 +61,8 @@ static int run_command(struct context *ctx)
 		ctx->argv++;
 	}
 
+	ctx->client = l_dbus_client_new(ctx->dbus, EDISKSD_SERVICE, EDISKSD_BASE_PATH);
+
 	for (i = 0; i < L_ARRAY_SIZE(commands); i++)
 		if (!strcmp(commands[i].cmd, command))
 			return commands[i].fn(ctx->client, ctx->argc, ctx->argv);
@@ -87,7 +89,6 @@ int main(int argc, char *argv[])
 		return EXIT_FAILURE;
 
 	ctx.dbus = l_dbus_new_default(L_DBUS_SYSTEM_BUS);
-	ctx.client = l_dbus_client_new(dbus, EDISKSD_SERVICE, EDISKSD_BASE_PATH);
 
 	ret = run_command(&ctx);
 	if (ret)
