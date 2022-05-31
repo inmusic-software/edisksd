@@ -82,9 +82,34 @@ struct block_device *block_device_lookup_by_dev(dev_t dev)
 	return ctx.block;
 }
 
+static bool valid_path_character(char c)
+{
+	if (c >= 'a' && c <= 'z')
+		return true;
+	if (c >= 'A' && c <= 'Z')
+		return true;
+	if (c >= '0' && c <= '9')
+		return true;
+	if (c == '_' || c == '/')
+		return true;
+
+	return false;
+}
+
 char *block_device_get_path(const struct block_device *block)
 {
-	return l_strdup_printf("%s%s", EDISKSD_BASE_PATH, block->device);
+	char *path, *c;
+
+	path = l_strdup_printf("%s%s", EDISKSD_BASE_PATH, block->device);
+
+	c = path;
+	while (*c) {
+		if (!valid_path_character(*c))
+			*c = '_';
+		c++;
+	}
+
+	return path;
 }
 
 dev_t block_device_get_dev(const struct block_device *block)
