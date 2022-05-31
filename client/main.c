@@ -50,7 +50,7 @@ static bool is_umount_helper(const char *progname)
 	return !!strstr(progname, "umount.edisksd");
 }
 
-static int run_command(struct context *ctx)
+static void run_command(struct context *ctx)
 {
 	const char *command;
 	size_t i;
@@ -66,12 +66,20 @@ static int run_command(struct context *ctx)
 
 	ctx->client = l_dbus_client_new(ctx->dbus, EDISKSD_SERVICE, EDISKSD_BASE_PATH);
 
-	for (i = 0; i < L_ARRAY_SIZE(commands); i++)
-		if (!strcmp(commands[i].cmd, command))
-			return commands[i].fn(ctx->client, ctx->argc, ctx->argv);
+	for (i = 0; i < L_ARRAY_SIZE(commands); i++) {
+		if (!strcmp(commands[i].cmd, command)) {
+			int ret;
+
+			ret = commands[i].fn(ctx->client, ctx->argc, ctx->argv);
+			if (ret)
+				exit(ret);
+
+			return;
+		}
+	}
 
 	l_error("Unknown command: %s", ctx->argv[0]);
-	return EXIT_FAILURE;
+	exit(EXIT_FAILURE);
 }
 
 static void check_daemon_version(struct context *ctx);
