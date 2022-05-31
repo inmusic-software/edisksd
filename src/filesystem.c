@@ -576,16 +576,28 @@ static void filesystem_unmount_stale(void *data, void *user_data)
 	}
 }
 
+static const char *get_device_property_or_empty(struct udev_device *device,
+						const char *key)
+{
+	const char *ret;
+
+	ret = udev_device_get_property_value(device, key);
+	if (!ret)
+		ret = "";
+
+	return ret;
+}
+
 void filesystem_added(struct block_device *block, struct udev_device *device)
 {
 	struct filesystem *fs = l_new(struct filesystem, 1);
 
 	fs->block = block;
-	fs->type = l_strdup(udev_device_get_property_value(device, "ID_FS_TYPE"));
+	fs->type = l_strdup(get_device_property_or_empty(device, "ID_FS_TYPE"));
 	fs->devnode = l_strdup(udev_device_get_devnode(device));
 	fs->dev = block_device_get_dev(block);
-	fs->label = l_strdup(udev_device_get_property_value(device, "ID_FS_LABEL"));
-	fs->uuid = l_strdup(udev_device_get_property_value(device, "ID_FS_UUID"));
+	fs->label = l_strdup(get_device_property_or_empty(device, "ID_FS_LABEL"));
+	fs->uuid = l_strdup(get_device_property_or_empty(device, "ID_FS_UUID"));
 	fs->mountpoints = l_queue_new();
 
 	l_queue_push_tail(filesystems, fs);
@@ -636,11 +648,11 @@ void filesystem_changed(struct block_device *block, struct udev_device *device)
 		return;
 
 	filesystem_update_property(fs, "Type", &fs->type,
-				   udev_device_get_property_value(device, "ID_FS_TYPE"));
+				   get_device_property_or_empty(device, "ID_FS_TYPE"));
 	filesystem_update_property(fs, "Label", &fs->label,
-				   udev_device_get_property_value(device, "ID_FS_LABEL"));
+				   get_device_property_or_empty(device, "ID_FS_LABEL"));
 	filesystem_update_property(fs, "UUID", &fs->uuid,
-				   udev_device_get_property_value(device, "ID_FS_UUID"));
+				   get_device_property_or_empty(device, "ID_FS_UUID"));
 }
 
 int filesystem_init(void)
