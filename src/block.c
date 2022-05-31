@@ -349,7 +349,7 @@ void block_changed(struct udev_device *device)
 
 	devpath = udev_device_get_devpath(device);
 
-	block = l_hashmap_remove(block_hashmap, devpath);
+	block = l_hashmap_lookup(block_hashmap, devpath);
 	if (!block)
 		return;
 
