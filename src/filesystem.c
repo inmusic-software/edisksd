@@ -204,6 +204,75 @@ static bool mount_opt_is_permitted(const char *filesystem, const char *key)
 	return false;
 }
 
+static bool opt_in_optstr(const char *opt, const char *optstr)
+{
+	size_t n = strchrnul(opt, '=') - opt;
+
+	while (*optstr) {
+		if (*optstr == ',')
+			optstr++;
+
+		if (!strncmp(optstr, opt, n) && (optstr[n] == '=' || optstr[n] == ','))
+			return true;
+
+		optstr = strchrnul(optstr, ',');
+	}
+
+	return false;
+}
+
+static void apply_default_opts(struct filesystem *fs,
+			       const char *const *defaults)
+{
+	struct l_string *optstr;
+
+	optstr = l_string_new(0);
+
+	while (*defaults) {
+		const char *opt = *defaults++;
+
+		if (opt_in_optstr(opt, fs->mount_opts))
+			continue;
+
+		l_string_append(optstr, opt);
+		l_string_append_c(optstr, ',');
+	}
+
+	l_string_append(optstr, fs->mount_opts);
+
+	l_free(fs->mount_opts);
+	fs->mount_opts = l_string_unwrap(optstr);
+}
+
+static void apply_fstype_defaults(struct filesystem *fs)
+{
+	static const char *const vfat_defaults[] = {
+		"dmask=0077",
+		"showexec",
+		"utf8=1",
+		NULL
+	};
+
+	static const struct {
+		const char *type;
+		const char *const *defaults;
+	} fstype_defaults[] = {
+		{ "vfat", vfat_defaults, },
+	};
+
+	size_t i;
+
+	for (i = 0; i < L_ARRAY_SIZE(fstype_defaults); i++) {
+		size_t j;
+
+		if (strcmp(fs->mount_type, fstype_defaults[i].type) != 0)
+			continue;
+
+		apply_default_opts(fs, fstype_defaults[i].defaults);
+		break;
+	}
+}
+
 static struct l_dbus_message *filesystem_mount(struct l_dbus *dbus,
 					       struct l_dbus_message *message,
 					       void *user_data)
@@ -261,6 +330,8 @@ static struct l_dbus_message *filesystem_mount(struct l_dbus *dbus,
 
 	l_free(fs->mount_opts);
 	fs->mount_opts = l_string_unwrap(optstr);
+
+	apply_fstype_defaults(fs);
 
 	mountpoint = create_mountpoint(fs);
 	if (!mountpoint)
