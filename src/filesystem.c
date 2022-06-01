@@ -192,6 +192,7 @@ static bool mount_opt_is_permitted(const char *filesystem, const char *key)
 		"flush",
 		"showexec",
 		"usefree",
+		"utf8",
 	};
 
 	size_t i;
