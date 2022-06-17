@@ -536,6 +536,18 @@ static void filesystem_register_dbus(struct filesystem *fs)
 		l_warn("Unable to add %s interface", EDISKSD_FILESYSTEM_INTERFACE);
 }
 
+static void filesystem_unregister_dbus(struct filesystem *fs)
+{
+	L_AUTO_FREE_VAR(char *, path) = block_device_get_path(fs->block);
+	struct l_dbus *dbus = dbus_get_bus();
+
+	/*
+	 * Ignore errors here - in the common case the entire object has already
+	 * been removed by the block layer.
+	 */
+	l_dbus_object_remove_interface(dbus, path, EDISKSD_FILESYSTEM_INTERFACE);
+}
+
 static void setup_filesystem_interface(struct l_dbus_interface *interface)
 {
 	l_dbus_interface_method(interface, "Mount", 0,
@@ -684,6 +696,8 @@ void filesystem_removed(struct block_device *block)
 	fs = filesystem_lookup_by_dev(block_device_get_dev(block));
 	if (!fs)
 		return;
+
+	filesystem_unregister_dbus(fs);
 
 	l_queue_remove(filesystems, fs);
 	l_queue_foreach(fs->mountpoints, filesystem_unmount_stale, fs);
