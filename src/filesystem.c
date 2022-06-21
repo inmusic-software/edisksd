@@ -40,9 +40,13 @@ struct filesystem {
 	char *mount_opts;
 
 	int mount_result;
+
+	bool destroyed;
 };
 static struct l_queue *filesystems;
 static struct l_queue *managed_mountpoints;
+
+static void filesystem_destroy(struct filesystem *);
 
 static bool filesystem_match_dev(const void *a, const void *b)
 {
@@ -160,6 +164,9 @@ static void mount_done(void *data)
 
 	fs->pending_mountpoint = NULL;
 	fs->mount_pending = NULL;
+
+	if (fs->destroyed)
+		filesystem_destroy(fs);
 }
 
 static bool mount_opt_is_permitted(const char *filesystem, const char *key)
@@ -689,6 +696,32 @@ void filesystem_added(struct block_device *block, struct udev_device *device)
 	filesystem_register_dbus(fs);
 }
 
+static void filesystem_destroy(struct filesystem *fs)
+{
+	l_queue_foreach(fs->mountpoints, filesystem_unmount_stale, fs);
+	/* Ownership of mountpoint data is passed to unmount workers */
+	l_queue_clear(fs->mountpoints, NULL);
+
+	/*
+	 * If a mount is still in progress, then the underlying filesystem
+	 * object will still be used in the completion callback so it can't
+	 * be freed quite yet.
+	 *
+	 * Note that this check is after the initial unmount as those
+	 * mountpoints should be removed as soon as possible.  If the
+	 * in-progress mount actually completes successfully (as unlikely as
+	 * that is) then this whole function is called again and will remove
+	 * the new stale mount; by that point mount_pending has been cleared
+	 * so the filesystem will finally be freed.
+	 */
+	if (fs->mount_pending) {
+		fs->destroyed = true;
+		return;
+	}
+
+	filesystem_free(fs);
+}
+
 void filesystem_removed(struct block_device *block)
 {
 	struct filesystem *fs;
@@ -700,10 +733,7 @@ void filesystem_removed(struct block_device *block)
 	filesystem_unregister_dbus(fs);
 
 	l_queue_remove(filesystems, fs);
-	l_queue_foreach(fs->mountpoints, filesystem_unmount_stale, fs);
-	/* Ownership of mountpoint data is passed to unmount workers */
-	l_queue_clear(fs->mountpoints, NULL);
-	filesystem_free(fs);
+	filesystem_destroy(fs);
 }
 
 static void filesystem_update_property(struct filesystem *fs, const char *prop,
