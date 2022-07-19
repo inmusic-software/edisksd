@@ -18,6 +18,7 @@
 
 #include "src/block.h"
 #include "src/dbus.h"
+#include "src/decode.h"
 #include "src/filesystem.h"
 #include "src/task.h"
 
@@ -679,6 +680,21 @@ static const char *get_device_property_or_empty(struct udev_device *device,
 	return ret;
 }
 
+static char *get_device_fs_label(struct udev_device *device)
+{
+	const char *value;
+
+	value = udev_device_get_property_value(device, "ID_FS_LABEL_ENC");
+	if (value)
+		return decode_blkid_string(value);
+
+	value = udev_device_get_property_value(device, "ID_FS_LABEL");
+	if (value)
+		return l_strdup(value);
+
+	return l_strdup("");
+}
+
 void filesystem_added(struct block_device *block, struct udev_device *device)
 {
 	struct filesystem *fs = l_new(struct filesystem, 1);
@@ -687,7 +703,7 @@ void filesystem_added(struct block_device *block, struct udev_device *device)
 	fs->type = l_strdup(get_device_property_or_empty(device, "ID_FS_TYPE"));
 	fs->devnode = l_strdup(udev_device_get_devnode(device));
 	fs->dev = block_device_get_dev(block);
-	fs->label = l_strdup(get_device_property_or_empty(device, "ID_FS_LABEL"));
+	fs->label = get_device_fs_label(device);
 	fs->uuid = l_strdup(get_device_property_or_empty(device, "ID_FS_UUID"));
 	fs->mountpoints = l_queue_new();
 
@@ -766,7 +782,7 @@ void filesystem_changed(struct block_device *block, struct udev_device *device)
 	filesystem_update_property(fs, "Type", &fs->type,
 				   get_device_property_or_empty(device, "ID_FS_TYPE"));
 	filesystem_update_property(fs, "Label", &fs->label,
-				   get_device_property_or_empty(device, "ID_FS_LABEL"));
+				   get_device_fs_label(device));
 	filesystem_update_property(fs, "UUID", &fs->uuid,
 				   get_device_property_or_empty(device, "ID_FS_UUID"));
 }

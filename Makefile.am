@@ -31,6 +31,7 @@ libexec_PROGRAMS += src/edisksd
 src_edisksd_SOURCES = src/main.c src/edisksd.h \
 		      src/block.c src/block.h \
 		      src/dbus.c src/dbus.h \
+		      src/decode.c src/decode.h \
 		      src/filesystem.c src/filesystem.h \
 		      src/mount.c src/mount.h \
 		      src/task.c src/task.h \
