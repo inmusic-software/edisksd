@@ -21,6 +21,21 @@ static char hexval(char c)
 	return 0;
 }
 
+static char *validate_utf8(char *s)
+{
+	size_t len = strlen(s);
+	const char *end;
+	char *ret;
+
+	if (l_utf8_validate(s, len, &end))
+		return s;
+
+	ret = l_strndup(s, end - s);
+	l_free(s);
+
+	return ret;
+}
+
 char *decode_blkid_string(const char *s)
 {
 	size_t len = strlen(s);
@@ -40,5 +55,5 @@ char *decode_blkid_string(const char *s)
 		l_string_append_c(ret, c);
 	}
 
-	return l_string_unwrap(ret);
+	return validate_utf8(l_string_unwrap(ret));
 }
