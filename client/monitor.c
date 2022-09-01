@@ -142,12 +142,17 @@ static void proxy_added(struct l_dbus_proxy *proxy, void *user_data)
 
 	if (!strcmp(interface, EDISKSD_BLOCK_INTERFACE)) {
 		const char *device;
+		bool ignored;
 		uint32_t n;
 
 		dev->block = proxy;
 		if (dbus_proxy_get_byte_array_property(proxy, "Device", &device, &n)) {
+			if (!l_dbus_proxy_get_property(proxy, "HintIgnore", "b", &ignored))
+				ignored = false;
+
 			dev->device = l_strdup(device);
-			l_info("block device added: %.*s", (int) n, device);
+			l_info("block device added: %.*s%s", (int) n, device,
+			       ignored ? " (hint:ignore)" : "");
 			announce_devlinks(proxy);
 		}
 
