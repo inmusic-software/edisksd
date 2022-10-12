@@ -20,6 +20,11 @@
 #include "src/dbus.h"
 #include "src/filesystem.h"
 
+enum connection_bus {
+	CONNECTION_UNKNOWN,
+	CONNECTION_USB,
+	CONNECTION_MMC,
+};
 
 struct block_device {
 	char *syspath;
@@ -30,6 +35,8 @@ struct block_device {
 
 	dev_t dev;
 	uint64_t size;
+
+	enum connection_bus connection_bus;
 
 	bool ignore;
 	bool filesystem;
@@ -129,6 +136,31 @@ static bool block_property_get_syspath(struct l_dbus *dbus,
 						       s, strlen(s) + 1);
 }
 
+static bool block_property_get_connection_bus(struct l_dbus *dbus,
+					      struct l_dbus_message *message,
+					      struct l_dbus_message_builder *builder,
+					      void *user_data)
+{
+	struct block_device *block = user_data;
+	const char *s;
+
+	switch (block->connection_bus) {
+	default:
+		l_error("BUG: unhandled connection type: %d", block->connection_bus);
+		[[fallthrough]];
+	case CONNECTION_UNKNOWN:
+		return false;
+	case CONNECTION_USB:
+		s = "usb";
+		break;
+	case CONNECTION_MMC:
+		s = "mmc";
+		break;
+	}
+
+	return l_dbus_message_builder_append_basic(builder, 's', s);
+}
+
 static bool block_property_get_device(struct l_dbus *dbus,
 				      struct l_dbus_message *message,
 				      struct l_dbus_message_builder *builder,
@@ -225,6 +257,8 @@ static void setup_block_interface(struct l_dbus_interface *interface)
 {
 	l_dbus_interface_property(interface, "SysPath", 0, "ay",
 				  block_property_get_syspath, NULL);
+	l_dbus_interface_property(interface, "ConnectionBus", 0, "s",
+				  block_property_get_connection_bus, NULL);
 	l_dbus_interface_property(interface, "Device", 0, "ay",
 				  block_property_get_device, NULL);
 	l_dbus_interface_property(interface, "DeviceLinks", 0, "aay",
@@ -304,6 +338,19 @@ static uint64_t block_get_size(struct block_device *block)
 	return val;
 }
 
+static enum connection_bus block_get_connection_bus(struct udev_device *device)
+{
+	struct udev_device *parent;
+
+	if (udev_device_get_parent_with_subsystem_devtype(device, "usb", "usb_interface"))
+		return CONNECTION_USB;
+
+	if (l_str_has_prefix(udev_device_get_sysname(device), "mmcblk"))
+		return CONNECTION_MMC;
+
+	return CONNECTION_UNKNOWN;
+}
+
 void block_added(struct udev_device *device)
 {
 	struct block_device *block;
@@ -323,6 +370,7 @@ void block_added(struct udev_device *device)
 	block->devpath = l_strdup(devpath);
 	block->dev = udev_device_get_devnum(device);
 	block->size = block_get_size(block);
+	block->connection_bus = block_get_connection_bus(device);
 	block->ignore = get_udev_bool_property(device, "EDISKSD_IGNORE");
 	block->filesystem = is_filesystem_device(device);
 	block->ro = sysattr_to_bool(udev_device_get_sysattr_value(device, "ro"));
@@ -369,6 +417,7 @@ void block_changed(struct udev_device *device)
 {
 	L_AUTO_FREE_VAR(char *, path) = NULL;
 	struct l_dbus *dbus = dbus_get_bus();
+	enum connection_bus connection_bus;
 	struct block_device *block;
 	const char *devpath;
 
@@ -399,6 +448,14 @@ void block_changed(struct udev_device *device)
 		l_dbus_property_changed(dbus, path,
 					EDISKSD_BLOCK_INTERFACE,
 					"ReadOnly");
+	}
+
+	connection_bus = block_get_connection_bus(device);
+	if (block->connection_bus != connection_bus) {
+		block->connection_bus = connection_bus;
+		l_dbus_property_changed(dbus, path,
+					EDISKSD_BLOCK_INTERFACE,
+					"ConnectionBus");
 	}
 
 	if (is_filesystem_device(device)) {
