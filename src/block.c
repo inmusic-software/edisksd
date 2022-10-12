@@ -26,6 +26,81 @@ enum connection_bus {
 	CONNECTION_MMC,
 };
 
+enum media_type {
+	MEDIA_UNKNOWN,
+	MEDIA_THUMB,
+	MEDIA_FLASH,
+	MEDIA_FLASH_CF,
+	MEDIA_FLASH_MS,
+	MEDIA_FLASH_SM,
+	MEDIA_FLASH_SD,
+	MEDIA_FLASH_SDHC,
+	MEDIA_FLASH_SDXC,
+	MEDIA_FLASH_SDIO,
+	MEDIA_FLASH_SD_COMBO,
+	MEDIA_FLASH_MMC,
+};
+
+static const struct {
+	const char *name;
+	const char *udev_drive;
+	const char *udev_media;
+} media_type_details[] = {
+	[MEDIA_THUMB] = {
+		.name = "thumb",
+		.udev_drive = "ID_DRIVE_THUMB",
+	},
+	[MEDIA_FLASH] = {
+		.name = "flash",
+		.udev_drive = "ID_DRIVE_FLASH",
+		.udev_media = "ID_DRIVE_MEDIA_FLASH",
+	},
+	[MEDIA_FLASH_CF] = {
+		.name = "flash_cf",
+		.udev_drive = "ID_DRIVE_FLASH_CF",
+		.udev_media = "ID_DRIVE_MEDIA_FLASH_CF",
+	},
+	[MEDIA_FLASH_MS] = {
+		.name = "flash_ms",
+		.udev_drive = "ID_DRIVE_FLASH_MS",
+		.udev_media = "ID_DRIVE_MEDIA_FLASH_MS",
+	},
+	[MEDIA_FLASH_SM] = {
+		.name = "flash_sm",
+		.udev_drive = "ID_DRIVE_FLASH_SM",
+		.udev_media = "ID_DRIVE_MEDIA_FLASH_SM",
+	},
+	[MEDIA_FLASH_SD] = {
+		.name = "flash_sd",
+		.udev_drive = "ID_DRIVE_FLASH_SD",
+		.udev_media = "ID_DRIVE_MEDIA_FLASH_SD",
+	},
+	[MEDIA_FLASH_SDHC] = {
+		.name = "flash_sdhc",
+		.udev_drive = "ID_DRIVE_FLASH_SDHC",
+		.udev_media = "ID_DRIVE_MEDIA_FLASH_SDHC",
+	},
+	[MEDIA_FLASH_SDXC] = {
+		.name = "flash_sdxc",
+		.udev_drive = "ID_DRIVE_FLASH_SDXC",
+		.udev_media = "ID_DRIVE_MEDIA_FLASH_SDXC",
+	},
+	[MEDIA_FLASH_SDIO] = {
+		.name = "flash_sdio",
+		.udev_drive = "ID_DRIVE_FLASH_SDIO",
+		.udev_media = "ID_DRIVE_MEDIA_FLASH_SDIO",
+	},
+	[MEDIA_FLASH_SD_COMBO] = {
+		.name = "flash_sd_combo",
+		.udev_drive = "ID_DRIVE_FLASH_SD_COMBO",
+	},
+	[MEDIA_FLASH_MMC] = {
+		.name = "flash_mmc",
+		.udev_drive = "ID_DRIVE_FLASH_MMC",
+		.udev_media = "ID_DRIVE_MEDIA_FLASH_MMC",
+	},
+};
+
 struct block_device {
 	char *syspath;
 	char *device;
@@ -37,6 +112,7 @@ struct block_device {
 	uint64_t size;
 
 	enum connection_bus connection_bus;
+	enum media_type media;
 
 	bool ignore;
 	bool filesystem;
@@ -218,6 +294,20 @@ static bool block_property_get_hint_ignore(struct l_dbus *dbus,
 	return l_dbus_message_builder_append_basic(builder, 'b', &ignore);
 }
 
+static bool block_property_get_media(struct l_dbus *dbus,
+				     struct l_dbus_message *message,
+				     struct l_dbus_message_builder *builder,
+				     void *user_data)
+{
+	struct block_device *block = user_data;
+	const char *s = media_type_details[block->media].name;
+
+	if (!s)
+		return false;
+
+	return l_dbus_message_builder_append_basic(builder, 's', s);
+}
+
 static bool block_property_get_ro(struct l_dbus *dbus,
 				  struct l_dbus_message *message,
 				  struct l_dbus_message_builder *builder,
@@ -267,6 +357,8 @@ static void setup_block_interface(struct l_dbus_interface *interface)
 				  block_property_get_device_number, NULL);
 	l_dbus_interface_property(interface, "HintIgnore", 0, "b",
 				  block_property_get_hint_ignore, NULL);
+	l_dbus_interface_property(interface, "Media", 0, "s",
+				  block_property_get_media, NULL);
 	l_dbus_interface_property(interface, "ReadOnly", 0, "b",
 				  block_property_get_ro, NULL);
 	l_dbus_interface_property(interface, "Size", 0, "t",
@@ -351,6 +443,21 @@ static enum connection_bus block_get_connection_bus(struct udev_device *device)
 	return CONNECTION_UNKNOWN;
 }
 
+static enum media_type block_get_media(struct udev_device *device)
+{
+	/* First pass - look for specific media set by udev rules. */
+	for (size_t i = 0; i < L_ARRAY_SIZE(media_type_details); i++)
+		if (get_udev_bool_property(device, media_type_details[i].udev_media))
+			return (enum media_type) i;
+
+	/* If nothing succeeds there, use the first type supported by the drive. */
+	for (size_t i = 0; i < L_ARRAY_SIZE(media_type_details); i++)
+		if (get_udev_bool_property(device, media_type_details[i].udev_drive))
+			return (enum media_type) i;
+
+	return MEDIA_UNKNOWN;
+}
+
 void block_added(struct udev_device *device)
 {
 	struct block_device *block;
@@ -371,6 +478,7 @@ void block_added(struct udev_device *device)
 	block->dev = udev_device_get_devnum(device);
 	block->size = block_get_size(block);
 	block->connection_bus = block_get_connection_bus(device);
+	block->media = block_get_media(device);
 	block->ignore = get_udev_bool_property(device, "EDISKSD_IGNORE");
 	block->filesystem = is_filesystem_device(device);
 	block->ro = sysattr_to_bool(udev_device_get_sysattr_value(device, "ro"));
@@ -419,6 +527,7 @@ void block_changed(struct udev_device *device)
 	struct l_dbus *dbus = dbus_get_bus();
 	enum connection_bus connection_bus;
 	struct block_device *block;
+	enum media_type media;
 	const char *devpath;
 
 	devpath = udev_device_get_devpath(device);
@@ -456,6 +565,14 @@ void block_changed(struct udev_device *device)
 		l_dbus_property_changed(dbus, path,
 					EDISKSD_BLOCK_INTERFACE,
 					"ConnectionBus");
+	}
+
+	media = block_get_media(device);
+	if (block->media != media) {
+		block->media = media;
+		l_dbus_property_changed(dbus, path,
+					EDISKSD_BLOCK_INTERFACE,
+					"Media");
 	}
 
 	if (is_filesystem_device(device)) {
