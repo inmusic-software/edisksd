@@ -133,6 +133,24 @@ static void announce_devlinks(struct l_dbus_proxy *proxy)
 	}
 }
 
+static void append_flag_if_property_set(struct l_string *s, const char *label,
+					struct l_dbus_proxy *proxy, const char *name)
+{
+	bool value;
+
+	if (!l_dbus_proxy_get_property(proxy, name, "b", &value))
+		return;
+	if (!value)
+		return;
+
+	if (l_string_length(s) == 0)
+		l_string_append(s, " (");
+	else
+		l_string_append_c(s, ' ');
+
+	l_string_append(s, label);
+}
+
 static void proxy_added(struct l_dbus_proxy *proxy, void *user_data)
 {
 	const char *interface = l_dbus_proxy_get_interface(proxy);
@@ -142,17 +160,23 @@ static void proxy_added(struct l_dbus_proxy *proxy, void *user_data)
 
 	if (!strcmp(interface, EDISKSD_BLOCK_INTERFACE)) {
 		const char *device;
-		bool ignored;
 		uint32_t n;
 
 		dev->block = proxy;
 		if (dbus_proxy_get_byte_array_property(proxy, "Device", &device, &n)) {
-			if (!l_dbus_proxy_get_property(proxy, "HintIgnore", "b", &ignored))
-				ignored = false;
+			L_AUTO_FREE_VAR(char *, flags_str) = NULL;
+			struct l_string *flags = l_string_new(0);
+
+			append_flag_if_property_set(flags, "hint:ignore", proxy, "HintIgnore");
+			append_flag_if_property_set(flags, "removable", proxy, "Removable");
+
+			if (l_string_length(flags) != 0)
+				l_string_append_c(flags, ')');
+
+			flags_str = l_string_unwrap(flags);
 
 			dev->device = l_strdup(device);
-			l_info("block device added: %.*s%s", (int) n, device,
-			       ignored ? " (hint:ignore)" : "");
+			l_info("block device added: %.*s%s", (int) n, device, flags_str);
 			announce_devlinks(proxy);
 		}
 
