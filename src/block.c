@@ -151,7 +151,7 @@ static bool get_udev_bool_property(struct udev_device *dev, const char *key)
 	if (!value)
 		return false;
 
-	return value[0] == '1' || !strcasecmp(value, "true");
+	return sysattr_to_bool(value);
 }
 
 struct block_device *block_device_lookup_by_dev(dev_t dev)
