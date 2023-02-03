@@ -443,8 +443,28 @@ static enum connection_bus block_get_connection_bus(struct udev_device *device)
 	return CONNECTION_UNKNOWN;
 }
 
+static enum media_type block_get_mmc_media(struct udev_device *device)
+{
+	const char *value;
+
+	value = udev_device_get_sysattr_value(device, "type");
+	if (!value)
+		return MEDIA_UNKNOWN;
+
+	if (!strcmp(value, "MMC"))
+		return MEDIA_FLASH_MMC;
+	if (!strcmp(value, "SD"))
+		return MEDIA_FLASH_SD;
+	if (!strcmp(value, "SDIO"))
+		return MEDIA_FLASH_SDIO;
+
+	return MEDIA_UNKNOWN;
+}
+
 static enum media_type block_get_media(struct udev_device *device)
 {
+	struct udev_device *mmc;
+
 	/* First pass - look for specific media set by udev rules. */
 	for (size_t i = 0; i < L_ARRAY_SIZE(media_type_details); i++)
 		if (get_udev_bool_property(device, media_type_details[i].udev_media))
@@ -454,6 +474,11 @@ static enum media_type block_get_media(struct udev_device *device)
 	for (size_t i = 0; i < L_ARRAY_SIZE(media_type_details); i++)
 		if (get_udev_bool_property(device, media_type_details[i].udev_drive))
 			return (enum media_type) i;
+
+	/* For MMC we can inspect the parent's type to refine the media type. */
+	mmc = udev_device_get_parent_with_subsystem_devtype(device, "mmc", NULL);
+	if (mmc)
+		return block_get_mmc_media(mmc);
 
 	return MEDIA_UNKNOWN;
 }
