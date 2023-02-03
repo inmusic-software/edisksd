@@ -41,10 +41,17 @@ enum media_type {
 	MEDIA_FLASH_MMC,
 };
 
+enum media_removable_override {
+	MEDIA_REMOVABLE_DEFAULT,
+	MEDIA_REMOVABLE_NEVER,
+	MEDIA_REMOVABLE_ALWAYS,
+};
+
 static const struct {
 	const char *name;
 	const char *udev_drive;
 	const char *udev_media;
+	enum media_removable_override removable;
 } media_type_details[] = {
 	[MEDIA_THUMB] = {
 		.name = "thumb",
@@ -54,50 +61,60 @@ static const struct {
 		.name = "flash",
 		.udev_drive = "ID_DRIVE_FLASH",
 		.udev_media = "ID_DRIVE_MEDIA_FLASH",
+		.removable = MEDIA_REMOVABLE_ALWAYS,
 	},
 	[MEDIA_FLASH_CF] = {
 		.name = "flash_cf",
 		.udev_drive = "ID_DRIVE_FLASH_CF",
 		.udev_media = "ID_DRIVE_MEDIA_FLASH_CF",
+		.removable = MEDIA_REMOVABLE_ALWAYS,
 	},
 	[MEDIA_FLASH_MS] = {
 		.name = "flash_ms",
 		.udev_drive = "ID_DRIVE_FLASH_MS",
 		.udev_media = "ID_DRIVE_MEDIA_FLASH_MS",
+		.removable = MEDIA_REMOVABLE_ALWAYS,
 	},
 	[MEDIA_FLASH_SM] = {
 		.name = "flash_sm",
 		.udev_drive = "ID_DRIVE_FLASH_SM",
 		.udev_media = "ID_DRIVE_MEDIA_FLASH_SM",
+		.removable = MEDIA_REMOVABLE_ALWAYS,
 	},
 	[MEDIA_FLASH_SD] = {
 		.name = "flash_sd",
 		.udev_drive = "ID_DRIVE_FLASH_SD",
 		.udev_media = "ID_DRIVE_MEDIA_FLASH_SD",
+		.removable = MEDIA_REMOVABLE_ALWAYS,
 	},
 	[MEDIA_FLASH_SDHC] = {
 		.name = "flash_sdhc",
 		.udev_drive = "ID_DRIVE_FLASH_SDHC",
 		.udev_media = "ID_DRIVE_MEDIA_FLASH_SDHC",
+		.removable = MEDIA_REMOVABLE_ALWAYS,
 	},
 	[MEDIA_FLASH_SDXC] = {
 		.name = "flash_sdxc",
 		.udev_drive = "ID_DRIVE_FLASH_SDXC",
 		.udev_media = "ID_DRIVE_MEDIA_FLASH_SDXC",
+		.removable = MEDIA_REMOVABLE_ALWAYS,
 	},
 	[MEDIA_FLASH_SDIO] = {
 		.name = "flash_sdio",
 		.udev_drive = "ID_DRIVE_FLASH_SDIO",
 		.udev_media = "ID_DRIVE_MEDIA_FLASH_SDIO",
+		.removable = MEDIA_REMOVABLE_ALWAYS,
 	},
 	[MEDIA_FLASH_SD_COMBO] = {
 		.name = "flash_sd_combo",
 		.udev_drive = "ID_DRIVE_FLASH_SD_COMBO",
+		.removable = MEDIA_REMOVABLE_ALWAYS,
 	},
 	[MEDIA_FLASH_MMC] = {
 		.name = "flash_mmc",
 		.udev_drive = "ID_DRIVE_FLASH_MMC",
 		.udev_media = "ID_DRIVE_MEDIA_FLASH_MMC",
+		.removable = MEDIA_REMOVABLE_NEVER,
 	},
 };
 
@@ -116,6 +133,7 @@ struct block_device {
 
 	bool ignore;
 	bool filesystem;
+	bool removable;
 	bool ro;
 };
 
@@ -319,6 +337,17 @@ static bool block_property_get_ro(struct l_dbus *dbus,
 	return l_dbus_message_builder_append_basic(builder, 'b', &ro);
 }
 
+static bool block_property_get_removable(struct l_dbus *dbus,
+					 struct l_dbus_message *message,
+					 struct l_dbus_message_builder *builder,
+					 void *user_data)
+{
+	struct block_device *block = user_data;
+	bool removable = block->removable;
+
+	return l_dbus_message_builder_append_basic(builder, 'b', &removable);
+}
+
 static bool block_property_get_size(struct l_dbus *dbus,
 				    struct l_dbus_message *message,
 				    struct l_dbus_message_builder *builder,
@@ -361,6 +390,8 @@ static void setup_block_interface(struct l_dbus_interface *interface)
 				  block_property_get_media, NULL);
 	l_dbus_interface_property(interface, "ReadOnly", 0, "b",
 				  block_property_get_ro, NULL);
+	l_dbus_interface_property(interface, "Removable", 0, "b",
+				  block_property_get_removable, NULL);
 	l_dbus_interface_property(interface, "Size", 0, "t",
 				  block_property_get_size, NULL);
 }
@@ -483,6 +514,62 @@ static enum media_type block_get_media(struct udev_device *device)
 	return MEDIA_UNKNOWN;
 }
 
+static bool block_is_removable(struct udev_device *device, enum media_type media,
+			       enum connection_bus bus)
+{
+	struct block_device *parent;
+	const char *value;
+
+	/* Is there an override for this specific device? */
+	value = udev_device_get_property_value(device, "EDISKSD_REMOVABLE");
+	l_info("%s for %s: EDISKS_REMOVABLE=%s media=%d", __func__,
+			udev_device_get_devpath(device),
+			value ? value : "???", media);
+
+	if (value)
+		return sysattr_to_bool(value);
+
+	/* Do we have special handling for this media type? */
+	switch (media_type_details[media].removable) {
+	case MEDIA_REMOVABLE_DEFAULT:
+		break;
+
+	case MEDIA_REMOVABLE_NEVER:
+		return false;
+
+	case MEDIA_REMOVABLE_ALWAYS:
+		return true;
+	}
+
+	/* Some bus types are always removable. */
+	switch (bus) {
+	case CONNECTION_USB:
+		return true;
+
+	default:
+		break;
+	}
+
+	/*
+	 * Use the kernel's "removable" attribute - we may have to search for
+	 * the "drive" block device as partition devices do not have this
+	 * attribute.
+	 */
+	value = udev_device_get_sysattr_value(device, "removable");
+	if (value)
+		return sysattr_to_bool(value);
+
+	device = udev_device_get_parent(device);
+	if (strcmp(udev_device_get_subsystem(device), "block"))
+		return false;
+
+	parent = block_device_lookup_by_dev(udev_device_get_devnum(device));
+	if (!parent)
+		return false;
+
+	return parent->removable;
+}
+
 void block_added(struct udev_device *device)
 {
 	struct block_device *block;
@@ -506,6 +593,7 @@ void block_added(struct udev_device *device)
 	block->media = block_get_media(device);
 	block->ignore = get_udev_bool_property(device, "EDISKSD_IGNORE");
 	block->filesystem = is_filesystem_device(device);
+	block->removable = block_is_removable(device, block->media, block->connection_bus);
 	block->ro = sysattr_to_bool(udev_device_get_sysattr_value(device, "ro"));
 
 	block->devlinks = str_array_from_udev_list(
@@ -554,6 +642,7 @@ void block_changed(struct udev_device *device)
 	struct block_device *block;
 	enum media_type media;
 	const char *devpath;
+	bool removable;
 
 	devpath = udev_device_get_devpath(device);
 
@@ -598,6 +687,14 @@ void block_changed(struct udev_device *device)
 		l_dbus_property_changed(dbus, path,
 					EDISKSD_BLOCK_INTERFACE,
 					"Media");
+	}
+
+	removable = block_is_removable(device, block->media, block->connection_bus);
+	if (block->removable != removable) {
+		block->removable = removable;
+		l_dbus_property_changed(dbus, path,
+					EDISKSD_BLOCK_INTERFACE,
+					"Removable");
 	}
 
 	if (is_filesystem_device(device)) {
