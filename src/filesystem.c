@@ -364,10 +364,13 @@ invalid:
 	return dbus_error_invalid_args(message);
 }
 
+#define UMOUNT_F_LAZY	(1U << 0)
+
 struct unmount_ctx {
 	struct l_dbus_message *pending;
 	const char *devnode;
 	const char *mountpoint;
+	unsigned int flags;
 	int result;
 };
 
@@ -391,6 +394,12 @@ static void unmount_run(void *data)
 	ret = mnt_context_disable_helpers(ctx, 1);
 	if (ret)
 		goto failed_context;
+
+	if (context->flags & UMOUNT_F_LAZY) {
+		ret = mnt_context_enable_lazy(ctx, 1);
+		if (ret)
+			goto failed_context;
+	}
 
 	ret = mnt_context_umount(ctx);
 	ret = mnt_context_get_excode(ctx, ret, buf, sizeof(buf));
@@ -661,6 +670,7 @@ static void filesystem_unmount_stale(void *data, void *user_data)
 	ctx = l_new(struct unmount_ctx, 1);
 	ctx->devnode = l_strdup(fs->devnode);
 	ctx->mountpoint = mountpoint;
+	ctx->flags |= UMOUNT_F_LAZY;
 
 	if (task_start(unmount_run, unmount_stale_done, ctx) < 0) {
 		l_free(ctx);
