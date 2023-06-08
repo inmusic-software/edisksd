@@ -90,5 +90,6 @@ clean-local:
 	-rm -f src/edisksd.service
 
 install-exec-hook:
+	mkdir -p $(DESTDIR)$(sbindir)
 	ln -f $(DESTDIR)$(bindir)/edisksctl$(EXEEXT) \
 		$(DESTDIR)$(sbindir)/umount.edisksd$(EXEEXT)
