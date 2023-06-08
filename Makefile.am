@@ -86,6 +86,9 @@ SED_PROCESS = $(AM_V_GEN)$(MKDIR_P) $(dir $@) && $(SED) \
 %.service: %.service.in Makefile
 	$(SED_PROCESS)
 
+clean-local:
+	-rm -f src/edisksd.service
+
 install-exec-hook:
 	ln -f $(DESTDIR)$(bindir)/edisksctl$(EXEEXT) \
 		$(DESTDIR)$(sbindir)/umount.edisksd$(EXEEXT)
