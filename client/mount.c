@@ -159,6 +159,7 @@ int mount_main(struct l_dbus_client *client, int argc, char *argv[])
 		switch (c) {
 		case 'h':
 			mount_usage(stdout);
+			l_main_quit();
 			return 0;
 
 		case 'o':
