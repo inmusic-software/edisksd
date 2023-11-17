@@ -85,6 +85,7 @@ static char *create_mountpoint(struct filesystem *fs)
 	for (suffix = 0; suffix < UINT_MAX; suffix++) {
 		struct l_string *str = l_string_new(0);
 		char *mountpoint;
+		int errno_saved;
 
 		l_string_append(str, "/media/");
 
@@ -102,7 +103,11 @@ static char *create_mountpoint(struct filesystem *fs)
 		if (!mkdir(mountpoint, 0777))
 			return mountpoint;
 
+		errno_saved = errno;
 		l_free(mountpoint);
+
+		if (errno_saved != EEXIST)
+			break;
 	}
 
 	return NULL;
