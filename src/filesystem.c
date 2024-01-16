@@ -175,6 +175,14 @@ static void mount_done(void *data)
 		filesystem_destroy(fs);
 }
 
+static char *mount_get_default_mount_type(const char *fs_type)
+{
+	if (!strcmp(fs_type, "ntfs"))
+		return l_strdup("ntfs3,ntfs-3g,ntfs");
+
+	return l_strdup(fs_type);
+}
+
 static bool mount_opt_is_permitted(const char *filesystem, const char *key)
 {
 	static const char *const all_permitted[] = {
@@ -310,7 +318,7 @@ static struct l_dbus_message *filesystem_mount(struct l_dbus *dbus,
 	l_string_append(optstr, "uhelper=edisksd,nodev,nosuid");
 
 	l_free(fs->mount_type);
-	fs->mount_type = l_strdup(fs->type);
+	fs->mount_type = mount_get_default_mount_type(fs->type);
 
 	while (l_dbus_message_iter_next_entry(&options, &key, &variant)) {
 		const char *value;
