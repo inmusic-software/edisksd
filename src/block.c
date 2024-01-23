@@ -601,6 +601,7 @@ void block_added(struct udev_device *device)
 
 	if (l_hashmap_lookup(block_hashmap, devpath)) {
 		l_warn("New device already exists!");
+		block_changed(device);
 		return;
 	}
 
