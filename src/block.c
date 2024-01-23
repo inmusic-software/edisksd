@@ -441,6 +441,27 @@ static char **str_array_from_udev_list(struct udev_list_entry *list)
 	return arr;
 }
 
+static bool str_array_udev_list_changed(char **array, struct udev_list_entry *list)
+{
+	struct udev_list_entry *e;
+	size_t n = 0;
+
+	udev_list_entry_foreach(e, list) {
+		if (!array[n])
+			return true;
+
+		if (strcmp(array[n], udev_list_entry_get_name(e)))
+			return true;
+
+		n++;
+	}
+
+	if (array[n])
+		return true;
+
+	return false;
+}
+
 static uint64_t block_get_size(struct block_device *block)
 {
 	uint64_t val;
@@ -639,6 +660,7 @@ void block_changed(struct udev_device *device)
 	L_AUTO_FREE_VAR(char *, path) = NULL;
 	struct l_dbus *dbus = dbus_get_bus();
 	enum connection_bus connection_bus;
+	struct udev_list_entry *devlinks;
 	struct block_device *block;
 	enum media_type media;
 	const char *devpath;
@@ -695,6 +717,15 @@ void block_changed(struct udev_device *device)
 		l_dbus_property_changed(dbus, path,
 					EDISKSD_BLOCK_INTERFACE,
 					"Removable");
+	}
+
+	devlinks = udev_device_get_devlinks_list_entry(device);
+	if (str_array_udev_list_changed(block->devlinks, devlinks)) {
+		l_strv_free(block->devlinks);
+		block->devlinks = str_array_from_udev_list(devlinks);
+		l_dbus_property_changed(dbus, path,
+					EDISKSD_BLOCK_INTERFACE,
+					"DeviceLinks");
 	}
 
 	if (is_filesystem_device(device)) {
