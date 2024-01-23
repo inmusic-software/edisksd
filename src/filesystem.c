@@ -267,6 +267,10 @@ static void apply_default_opts(struct filesystem *fs,
 
 static void apply_fstype_defaults(struct filesystem *fs)
 {
+	static const char *const ntfs_defaults[] = {
+		"iocharset=utf8",
+		NULL
+	};
 	static const char *const vfat_defaults[] = {
 		"dmask=0077",
 		"showexec",
@@ -278,6 +282,7 @@ static void apply_fstype_defaults(struct filesystem *fs)
 		const char *type;
 		const char *const *defaults;
 	} fstype_defaults[] = {
+		{ "ntfs3", ntfs_defaults, },
 		{ "vfat", vfat_defaults, },
 	};
 
@@ -286,7 +291,9 @@ static void apply_fstype_defaults(struct filesystem *fs)
 	for (i = 0; i < L_ARRAY_SIZE(fstype_defaults); i++) {
 		size_t j;
 
-		if (strcmp(fs->mount_type, fstype_defaults[i].type) != 0)
+		// Assume that an option specified for one type will not cause
+		// errors for any other type in the string.
+		if (!opt_in_optstr(fstype_defaults[i].type, fs->mount_type))
 			continue;
 
 		apply_default_opts(fs, fstype_defaults[i].defaults);
