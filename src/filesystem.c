@@ -265,6 +265,27 @@ static void apply_default_opts(struct filesystem *fs,
 	fs->mount_opts = l_string_unwrap(optstr);
 }
 
+static void apply_global_defaults(struct filesystem *fs)
+{
+	static const char *const defaults[] = {
+		"nodev",
+		"nosuid",
+		NULL
+	};
+
+	const char *const *opts_to_apply = defaults;
+	char **opts;
+
+	opts = l_settings_get_string_list(edisksd_get_config(), "General",
+					  "DefaultMountOptions", ',');
+
+	if (opts)
+		opts_to_apply = (const char *const *) opts;
+
+	apply_default_opts(fs, opts_to_apply);
+	l_strfreev(opts);
+}
+
 static void apply_fstype_defaults(struct filesystem *fs)
 {
 	static const char *const ntfs_defaults[] = {
@@ -322,7 +343,7 @@ static struct l_dbus_message *filesystem_mount(struct l_dbus *dbus,
 		return dbus_error_busy(message);
 
 	optstr = l_string_new(0);
-	l_string_append(optstr, "uhelper=edisksd,nodev,nosuid");
+	l_string_append(optstr, "uhelper=edisksd");
 
 	l_free(fs->mount_type);
 	fs->mount_type = mount_get_default_mount_type(fs->type);
@@ -359,6 +380,7 @@ static struct l_dbus_message *filesystem_mount(struct l_dbus *dbus,
 	l_free(fs->mount_opts);
 	fs->mount_opts = l_string_unwrap(optstr);
 
+	apply_global_defaults(fs);
 	apply_fstype_defaults(fs);
 
 	mountpoint = create_mountpoint(fs);
