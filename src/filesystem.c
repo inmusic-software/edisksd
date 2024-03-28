@@ -269,7 +269,9 @@ static void apply_global_defaults(struct filesystem *fs)
 {
 	static const char *const defaults[] = {
 		"nodev",
+		"noexec",
 		"nosuid",
+		"nosymfollow",
 		NULL
 	};
 
