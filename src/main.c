@@ -33,6 +33,11 @@ static void signal_handler(uint32_t signo, void *user_data)
 	}
 }
 
+const struct l_settings *edisksd_get_config(void)
+{
+	return edisksd_config;
+}
+
 static bool edisks_property_get_version(struct l_dbus *dbus,
 					struct l_dbus_message *message,
 					struct l_dbus_message_builder *builder,
