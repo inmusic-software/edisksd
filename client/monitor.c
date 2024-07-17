@@ -211,7 +211,7 @@ static void proxy_removed(struct l_dbus_proxy *proxy, void *user_data)
 		dev->filesystem = NULL;
 		l_queue_clear(dev->mountpoints, l_free);
 
-		l_info("filesystem removed");
+		l_info("filesystem removed: %s", dev->device ?: "<unknown>");
 	}
 }
 
