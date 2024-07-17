@@ -484,8 +484,6 @@ static uint64_t block_get_size(struct block_device *block)
 
 static enum connection_bus block_get_connection_bus(struct udev_device *device)
 {
-	struct udev_device *parent;
-
 	if (udev_device_get_parent_with_subsystem_devtype(device, "usb", "usb_interface"))
 		return CONNECTION_USB;
 
