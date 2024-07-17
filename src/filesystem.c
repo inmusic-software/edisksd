@@ -233,7 +233,9 @@ static bool opt_in_optstr(const char *opt, const char *optstr)
 		if (*optstr == ',')
 			optstr++;
 
-		if (!strncmp(optstr, opt, n) && (optstr[n] == '=' || optstr[n] == ','))
+		if (!strncmp(optstr, opt, n) && (optstr[n] == '=' ||
+						 optstr[n] == ',' ||
+						 optstr[n] == '\0'))
 			return true;
 
 		optstr = strchrnul(optstr, ',');
