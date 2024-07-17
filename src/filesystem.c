@@ -312,8 +312,6 @@ static void apply_fstype_defaults(struct filesystem *fs)
 	size_t i;
 
 	for (i = 0; i < L_ARRAY_SIZE(fstype_defaults); i++) {
-		size_t j;
-
 		// Assume that an option specified for one type will not cause
 		// errors for any other type in the string.
 		if (!opt_in_optstr(fstype_defaults[i].type, fs->mount_type))
