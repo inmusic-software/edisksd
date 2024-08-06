@@ -218,6 +218,11 @@ dev_t block_device_get_dev(const struct block_device *block)
 	return block->dev;
 }
 
+bool block_device_is_ro(const struct block_device *block)
+{
+	return block->ro;
+}
+
 static bool block_property_get_syspath(struct l_dbus *dbus,
 				       struct l_dbus_message *message,
 				       struct l_dbus_message_builder *builder,
