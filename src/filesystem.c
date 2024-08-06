@@ -130,7 +130,7 @@ static void mount_run(void *data)
 	ret = mnt_context_set_target(ctx, fs->pending_mountpoint);
 	if (ret)
 		goto failed_context;
-	ret = mnt_context_set_fstype(ctx, fs->mount_type);
+	ret = mnt_context_set_fstype_pattern(ctx, fs->mount_type);
 	if (ret)
 		goto failed_context;
 	ret = mnt_context_set_options(ctx, fs->mount_opts);
