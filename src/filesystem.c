@@ -379,6 +379,11 @@ static struct l_dbus_message *filesystem_mount(struct l_dbus *dbus,
 			l_string_append_printf(optstr, ",%s=%s", key, value);
 	}
 
+	// If the device is read-only, then ensure the mount attempt is read-only
+	// to avoid a failure with EROFS.
+	if (block_device_is_ro(fs->block))
+		l_string_append(optstr, ",ro");
+
 	l_free(fs->mount_opts);
 	fs->mount_opts = l_string_unwrap(optstr);
 
