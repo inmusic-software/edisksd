@@ -290,6 +290,27 @@ static void apply_global_defaults(struct filesystem *fs)
 	l_strfreev(opts);
 }
 
+static void apply_fstype_config_defaults(struct filesystem *fs)
+{
+	char **fstypes = l_strsplit(fs->mount_type, ',');
+	int i;
+
+	for (i = 0; fstypes[i]; i++) {
+		char **opts;
+
+		opts = l_settings_get_string_list(edisksd_get_config(),
+						  fstypes[i],
+						  "DefaultMountOptions", ',');
+		if (!opts)
+			continue;
+
+		apply_default_opts(fs, (const char *const *) opts);
+		l_strv_free(opts);
+	}
+
+	l_strv_free(fstypes);
+}
+
 static void apply_fstype_defaults(struct filesystem *fs)
 {
 	static const char *const ntfs_defaults[] = {
@@ -322,6 +343,8 @@ static void apply_fstype_defaults(struct filesystem *fs)
 		apply_default_opts(fs, fstype_defaults[i].defaults);
 		break;
 	}
+
+	apply_fstype_config_defaults(fs);
 }
 
 static struct l_dbus_message *filesystem_mount(struct l_dbus *dbus,
