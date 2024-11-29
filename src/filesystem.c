@@ -403,7 +403,10 @@ static struct l_dbus_message *filesystem_mount(struct l_dbus *dbus,
 	}
 
 	// If the device is read-only, then ensure the mount attempt is read-only
-	// to avoid a failure with EROFS.
+	// to avoid a failure with EROFS.  This works around a bug in libmount
+	// that was fixed in commit e2b3f99 where the internal read-only retry
+	// does not trigger if multiple filesystem types are specified, some of
+	// which are unsupported by the system.
 	if (block_device_is_ro(fs->block))
 		l_string_append(optstr, ",ro");
 
