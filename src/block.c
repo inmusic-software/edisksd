@@ -474,12 +474,12 @@ static uint64_t block_get_size(struct block_device *block)
 
 	fd = open(block->device, O_CLOEXEC);
 	if (fd < 0) {
-		l_warn("failed to read block size for %s", block->device);
+		l_warn("failed to read block size for %s: %d", block->device, errno);
 		return 0;
 	}
 
 	if (ioctl(fd, BLKGETSIZE64, &val) < 0) {
-		l_warn("failed to read block size for %s", block->device);
+		l_warn("failed to read block size for %s: %d", block->device, errno);
 		val = 0;
 	}
 
