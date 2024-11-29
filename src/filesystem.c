@@ -730,6 +730,14 @@ void filesystem_unmounted(dev_t dev, const char *mountpoint)
 static void unmount_stale_done(void *data)
 {
 	struct unmount_ctx *ctx = data;
+	int fd;
+
+	// Try to open the device, this may trigger re-reading the partition
+	// table on removed media (even if the open fails) which cannot be
+	// done while any filesystems are mounted.
+	fd = open(ctx->devnode, O_CLOEXEC);
+	if (fd >= 0)
+		close(fd);
 
 	l_free((char *)ctx->devnode);
 	l_free((char *)ctx->mountpoint);
