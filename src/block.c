@@ -684,6 +684,50 @@ void block_removed(struct udev_device *device)
 	block_device_free(block);
 }
 
+static void close_all_children(const void *key, void *value, void *user_data)
+{
+	struct block_device *parent = user_data;
+	struct block_device *block = value;
+
+	if (block->parent != parent)
+		return;
+
+	filesystem_removed(block);
+}
+
+static void block_check_media_removal(struct block_device *block)
+{
+	int fd;
+
+	fd = open(block->device, O_CLOEXEC);
+	if (fd >= 0) {
+		close(fd);
+		return;
+	}
+
+	if (errno != ENOMEDIUM)
+		return;
+
+	l_info("medium removed from %s", block->device);
+	l_hashmap_foreach(block_hashmap, close_all_children, block);
+
+	// This open is expected to fail with ENOMEDIUM, but even in this
+	// failure case the kernel should trigger re-reading of the partition
+	// table which is now possible as there are no longer any open
+	// partitions.
+	fd = open(block->device, O_CLOEXEC);
+	if (fd >= 0) {
+		l_warn("opening block device %s after media removal succeeded!",
+			block->device);
+		if (ioctl(fd, BLKRRPART, NULL) < 0)
+			l_warn("failed to re-read partition table on %s",
+				block->device);
+
+		close(fd);
+		return;
+	}
+}
+
 void block_changed(struct udev_device *device)
 {
 	L_AUTO_FREE_VAR(char *, path) = NULL;
@@ -708,6 +752,9 @@ void block_changed(struct udev_device *device)
 		l_dbus_property_changed(dbus, path,
 					EDISKSD_BLOCK_INTERFACE,
 					"Size");
+
+		if (!block->size)
+			block_check_media_removal(block);
 	}
 
 	if (block->ignore != get_udev_bool_property(device, "EDISKSD_IGNORE")) {
