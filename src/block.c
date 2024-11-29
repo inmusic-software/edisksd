@@ -125,6 +125,8 @@ struct block_device {
 
 	char **devlinks;
 
+	struct block_device *parent;
+
 	dev_t dev;
 	uint64_t size;
 
@@ -594,9 +596,28 @@ static bool block_is_removable(struct udev_device *device, enum media_type media
 	return parent->removable;
 }
 
+static void block_set_parent(struct block_device *block,
+			     struct udev_device *parent)
+{
+	struct block_device *block_parent;
+	const char *devpath;
+
+	devpath = udev_device_get_devpath(parent);
+	block_parent = l_hashmap_lookup(block_hashmap, devpath);
+	if (!block_parent) {
+		l_warn("failed to find parent block device %s for %s",
+			devpath, block->device);
+		return;
+	}
+
+	l_info("setting parent %s for %s", block_parent->device, block->device);
+	block->parent = block_parent;
+}
+
 void block_added(struct udev_device *device)
 {
 	struct block_device *block;
+	struct udev_device *parent;
 	L_AUTO_FREE_VAR(char *, path) = NULL;
 	const char *devpath;
 
@@ -623,6 +644,10 @@ void block_added(struct udev_device *device)
 
 	block->devlinks = str_array_from_udev_list(
 			udev_device_get_devlinks_list_entry(device));
+
+	parent = udev_device_get_parent(device);
+	if (parent && !strcmp(udev_device_get_subsystem(parent), "block"))
+		block_set_parent(block, parent);
 
 	path = block_device_get_path(block);
 
