@@ -546,7 +546,7 @@ static bool block_is_removable(struct udev_device *device, enum media_type media
 
 	/* Is there an override for this specific device? */
 	value = udev_device_get_property_value(device, "EDISKSD_REMOVABLE");
-	l_info("%s for %s: EDISKS_REMOVABLE=%s media=%d", __func__,
+	l_debug("%s for %s: EDISKS_REMOVABLE=%s media=%d", __func__,
 			udev_device_get_devpath(device),
 			value ? value : "???", media);
 
