@@ -151,7 +151,6 @@ int main(int argc, char *argv[])
 
 	ret = l_main_run_with_signal(signal_handler, NULL);
 
-failed_run:
 	l_dbus_client_destroy(ctx.client);
 	l_dbus_destroy(ctx.dbus);
 	l_main_exit();
