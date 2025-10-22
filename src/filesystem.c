@@ -41,6 +41,7 @@ struct filesystem {
 	char *mount_type;
 	char *mount_opts;
 
+	char *err_buf;
 	int mount_result;
 
 	bool destroyed;
@@ -107,8 +108,10 @@ static char *create_mountpoint(struct filesystem *fs)
 		errno_saved = errno;
 		l_free(mountpoint);
 
-		if (errno_saved != EEXIST)
+		if (errno_saved != EEXIST) {
+			errno = errno_saved;
 			break;
+		}
 	}
 
 	return NULL;
@@ -120,6 +123,9 @@ static void mount_run(void *data)
 	struct libmnt_context *ctx;
 	char buf[4096] = { 0 };
 	int ret = -ENOMEM;
+
+	l_free(fs->err_buf);
+	fs->err_buf = NULL;
 
 	ctx = mnt_new_context();
 	if (!ctx)
@@ -141,6 +147,9 @@ static void mount_run(void *data)
 	ret = mnt_context_mount(ctx);
 	ret = mnt_context_get_excode(ctx, ret, buf, sizeof(buf));
 
+	if (ret)
+		fs->err_buf = l_strndup(buf, sizeof(buf));
+
 failed_context:
 	mnt_free_context(ctx);
 failed:
@@ -153,7 +162,7 @@ static void mount_done(void *data)
 	struct l_dbus_message *reply;
 
 	if (fs->mount_result) {
-		reply = dbus_error_failed(fs->mount_pending);
+		reply = dbus_error_failed(fs->mount_pending, fs->err_buf);
 
 		if (rmdir(fs->pending_mountpoint) < 0)
 			l_warn("failed to delete mountpoint");
@@ -419,7 +428,7 @@ static struct l_dbus_message *filesystem_mount(struct l_dbus *dbus,
 
 	mountpoint = create_mountpoint(fs);
 	if (!mountpoint)
-		return dbus_error_failed(message);
+		return dbus_error_failed(message, strerror(errno));
 
 	fs->pending_mountpoint = mountpoint;
 	fs->mount_pending = l_dbus_message_ref(message);
@@ -446,6 +455,7 @@ struct unmount_ctx {
 	struct l_dbus_message *pending;
 	const char *devnode;
 	const char *mountpoint;
+	char *err_buf;
 	unsigned int flags;
 	int result;
 };
@@ -480,6 +490,9 @@ static void unmount_run(void *data)
 	ret = mnt_context_umount(ctx);
 	ret = mnt_context_get_excode(ctx, ret, buf, sizeof(buf));
 
+	if (ret)
+		context->err_buf = l_strndup(buf, sizeof(buf));
+
 failed_context:
 	mnt_free_context(ctx);
 failed:
@@ -492,7 +505,7 @@ static void unmount_done(void *data)
 	struct l_dbus_message *reply;
 
 	if (ctx->result) {
-		reply = dbus_error_failed(ctx->pending);
+		reply = dbus_error_failed(ctx->pending, ctx->err_buf);
 	} else {
 		reply = l_dbus_message_new_method_return(ctx->pending);
 		l_dbus_message_set_arguments(reply, "");
@@ -501,6 +514,7 @@ static void unmount_done(void *data)
 	l_dbus_send(dbus_get_bus(), reply);
 	l_dbus_message_unref(ctx->pending);
 
+	l_free(ctx->err_buf);
 	l_free(ctx);
 }
 
@@ -672,6 +686,8 @@ static void filesystem_free(struct filesystem *fs)
 	l_free(fs->mount_type);
 	l_free(fs->mount_opts);
 
+	l_free(fs->err_buf);
+
 	l_free(fs);
 }
 
@@ -742,6 +758,7 @@ static void unmount_stale_done(void *data)
 
 	l_free((char *)ctx->devnode);
 	l_free((char *)ctx->mountpoint);
+	l_free(ctx->err_buf);
 	l_free(ctx);
 }
 

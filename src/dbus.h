@@ -17,7 +17,7 @@ bool dbus_message_builder_append_basic_array(struct l_dbus_message_builder *,
 					     char type, const void *value,
 					     size_t count);
 
-struct l_dbus_message *dbus_error_failed(struct l_dbus_message *msg);
+struct l_dbus_message *dbus_error_failed(struct l_dbus_message *msg, const char *extra);
 struct l_dbus_message *dbus_error_not_implemented(struct l_dbus_message *msg);
 struct l_dbus_message *dbus_error_invalid_args(struct l_dbus_message *msg);
 struct l_dbus_message *dbus_error_already_mounted(struct l_dbus_message *msg);

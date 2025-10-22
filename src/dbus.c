@@ -43,10 +43,12 @@ bool dbus_message_builder_append_basic_array(struct l_dbus_message_builder *buil
 	return l_dbus_message_builder_leave_array(builder);
 }
 
-struct l_dbus_message *dbus_error_failed(struct l_dbus_message *msg)
+struct l_dbus_message *dbus_error_failed(struct l_dbus_message *msg, const char *extra)
 {
 	return l_dbus_message_new_error(msg, EDISKSD_SERVICE ".Failed",
-					"Operation failed");
+					"Operation failed%s%s",
+					extra ? ": " : "",
+					extra ?: "");
 }
 
 struct l_dbus_message *dbus_error_not_implemented(struct l_dbus_message *msg)
@@ -90,5 +92,5 @@ struct l_dbus_message *dbus_error_from_errno(int err, struct l_dbus_message *msg
 		break;
 	}
 
-	return dbus_error_failed(msg);
+	return dbus_error_failed(msg, strerror(err));
 }
