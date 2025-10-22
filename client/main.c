@@ -131,7 +131,6 @@ int main(int argc, char *argv[])
 		.argc = argc,
 		.argv = argv,
 	};
-	struct l_dbus *dbus;
 	int ret;
 
 	if (!l_main_init())
