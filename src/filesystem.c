@@ -216,6 +216,7 @@ static bool mount_opt_is_permitted(const char *filesystem, const char *key)
 		"ro",
 		"rw",
 		"sync",
+		"symfollow",
 		"nosymfollow",
 		"noload",
 
