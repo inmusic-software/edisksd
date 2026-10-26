@@ -391,7 +391,7 @@ static struct l_dbus_message *filesystem_mount(struct l_dbus *dbus,
 		 * All values are expected to be strings (for now) so extract
 		 * the value early.
 		 */
-		if (!l_dbus_message_iter_next_entry(&variant, &value))
+		if (!l_dbus_message_iter_get_variant(&variant, "s", &value))
 			goto invalid;
 
 		/* Block smuggled options. */
